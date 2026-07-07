@@ -30,6 +30,7 @@ import type {
 } from '../types.js';
 import type {PaginationOptions} from '../utils/types.js';
 import type {WaitForEventsResult} from '../WaitForHelper.js';
+import type {WebSocketConnection} from '../WebSocketCollector.js';
 
 import type {ToolCategory} from './categories.js';
 import type {ToolGroups} from './thirdPartyDeveloper.js';
@@ -241,6 +242,12 @@ export type Context = Readonly<{
     page: ContextPage,
     cdpRequestId: string,
   ): number | undefined;
+  getWebSocketConnections(page: ContextPage): WebSocketConnection[];
+  getWebSocketConnectionStableId(connection: WebSocketConnection): number;
+  getWebSocketConnectionById(
+    page: ContextPage,
+    wsId: number,
+  ): WebSocketConnection;
   getScreenRecorder(): {recorder: ScreenRecorder; filePath: string} | null;
   setScreenRecorder(
     data: {recorder: ScreenRecorder; filePath: string} | null,
