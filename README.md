@@ -1,5 +1,11 @@
 # Chrome DevTools for agents
 
+> [!IMPORTANT]
+> This is a fork of [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)
+> published as `@johan-gorter/chrome-devtools-mcp` to test the new logpoint tools
+> (`set_logpoint`, `remove_logpoint`, `list_logpoints`) before contributing them
+> upstream. For anything else, use the official package.
+
 [![npm chrome-devtools-mcp package](https://img.shields.io/npm/v/chrome-devtools-mcp.svg)](https://npmjs.org/package/chrome-devtools-mcp)
 
 Chrome DevTools for agents (`chrome-devtools-mcp`) lets your coding agent (such as Antigravity, Claude, Cursor or Copilot)
