@@ -335,13 +335,13 @@
 
 ### `get_websocket_message`
 
-**Description:** Get the payload of a WebSocket message by its id. You can list messages with [`list_websocket_messages`](#list_websocket_messages). Stored payloads are capped at 10000 characters.
+**Description:** Get the payload of a WebSocket message by its id. You can list messages with [`list_websocket_messages`](#list_websocket_messages). Stored payloads are capped at 100000 characters.
 
 **Parameters:**
 
 - **messageId** (integer) **(required)**: The id of the message as reported by [`list_websocket_messages`](#list_websocket_messages).
 - **wsId** (integer) **(required)**: The id of the WebSocket connection as reported by [`list_websocket_connections`](#list_websocket_connections).
-- **filePath** (string) _(optional)_: The absolute or relative path of a file to save the payload to. If omitted, the payload is returned inline.
+- **filePath** (string) _(optional)_: The absolute or relative path of a file to save the payload to. If omitted, the payload is returned inline. The file is saved with a .txt extension and the path must be inside the configured workspace roots.
 
 ---
 
@@ -360,15 +360,17 @@
 
 ### `list_websocket_connections`
 
-**Description:** List the WebSocket connections of the currently selected page since the last navigation. Use [`list_websocket_messages`](#list_websocket_messages) to inspect the messages of a connection.
+**Description:** List the WebSocket connections of the currently selected page. Open connections are always listed, including connections created early during page load; closed connections are listed until the page navigates. Traffic is captured from the moment the page is inspected: messages exchanged before that are not recorded, so reload the page to capture a connection from its start. Use [`list_websocket_messages`](#list_websocket_messages) to inspect the messages of a connection; wsIds are scoped to the page that created the connection.
 
-**Parameters:** None
+**Parameters:**
+
+- **includePreservedConnections** (boolean) _(optional)_: Set to true to also return closed connections preserved over the last 3 navigations.
 
 ---
 
 ### `list_websocket_messages`
 
-**Description:** List the messages of a WebSocket connection of the currently selected page, oldest first. Message payloads are shown as a single-line preview; use [`get_websocket_message`](#get_websocket_message) for a full payload. Only data messages are recorded (no ping/pong control frames). Per connection the last 500 messages are retained and stored payloads are capped at 10000 characters.
+**Description:** List the messages of a WebSocket connection of the currently selected page, oldest first. Message payloads are shown as a single-line preview; use [`get_websocket_message`](#get_websocket_message) for a full payload. Only data messages are recorded (no ping/pong control frames). Retention is bounded per connection: the last 500 messages within a 2MB budget, and stored payloads are capped at 100000 characters (longer ones are marked truncated).
 
 **Parameters:**
 

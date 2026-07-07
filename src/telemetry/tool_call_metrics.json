@@ -896,7 +896,12 @@
   },
   {
     "name": "list_websocket_connections",
-    "args": []
+    "args": [
+      {
+        "name": "include_preserved_connections",
+        "argType": "boolean"
+      }
+    ]
   },
   {
     "name": "list_websocket_messages",
