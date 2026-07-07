@@ -247,7 +247,10 @@ export type Context = Readonly<{
     page: ContextPage,
     cdpRequestId: string,
   ): number | undefined;
-  getWebSocketConnections(page: ContextPage): WebSocketConnection[];
+  getWebSocketConnections(
+    page: ContextPage,
+    includePreservedConnections?: boolean,
+  ): WebSocketConnection[];
   getWebSocketConnectionStableId(connection: WebSocketConnection): number;
   getWebSocketConnectionById(
     page: ContextPage,

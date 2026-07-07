@@ -51,7 +51,7 @@ Prefer `set_logpoint` over editing source code to add temporary `console.log()` 
 2. Messages: `list_websocket_messages` with a `wsId` lists sent/received payloads; narrow with `direction` and a payload `filter`.
 3. Full payload: `get_websocket_message` returns one message in full (`filePath` saves it to a file).
 
-Messages are recorded from the moment the page is inspected; reload the page to capture a connection from its start.
+Messages are recorded from the moment the page is inspected; reload the page to capture a connection from its start. Open connections stay listed across client-side route changes; pass `includePreservedConnections` to also see connections closed by earlier navigations.
 
 ### Parallel execution
 

@@ -34,9 +34,12 @@ function parseClientFrame(buffer: Buffer): ParsedFrame | null {
   let payloadLength = buffer[1] & 0x7f;
   let offset = 2;
   if (payloadLength === 127) {
-    throw new Error('Frames over 64KiB are not supported by the test server');
-  }
-  if (payloadLength === 126) {
+    if (buffer.length < 10) {
+      return null;
+    }
+    payloadLength = Number(buffer.readBigUInt64BE(2));
+    offset = 10;
+  } else if (payloadLength === 126) {
     if (buffer.length < 4) {
       return null;
     }
@@ -73,7 +76,11 @@ function encodeTextFrame(text: string): Buffer {
     header.writeUInt16BE(payload.length, 2);
     return Buffer.concat([header, payload]);
   }
-  throw new Error('Frames over 64KiB are not supported by the test server');
+  const header = Buffer.alloc(10);
+  header[0] = 0x81;
+  header[1] = 127;
+  header.writeBigUInt64BE(BigInt(payload.length), 2);
+  return Buffer.concat([header, payload]);
 }
 
 export class TestServer {

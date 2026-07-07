@@ -321,8 +321,14 @@ export class McpContext implements Context {
     );
   }
 
-  getWebSocketConnections(page: McpPage): WebSocketConnection[] {
-    return this.#webSocketCollector.getData(page.pptrPage);
+  getWebSocketConnections(
+    page: McpPage,
+    includePreservedConnections?: boolean,
+  ): WebSocketConnection[] {
+    return this.#webSocketCollector.getData(
+      page.pptrPage,
+      includePreservedConnections,
+    );
   }
 
   getWebSocketConnectionStableId(connection: WebSocketConnection): number {
@@ -335,7 +341,7 @@ export class McpContext implements Context {
     });
     if (!connection) {
       throw new Error(
-        `No WebSocket connection with wsId=${wsId} on the selected page.`,
+        `No WebSocket connection with wsId=${wsId} on the selected page. wsIds are scoped to the page that created the connection; list the connections of the currently selected page first.`,
       );
     }
     return connection;

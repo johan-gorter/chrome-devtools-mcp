@@ -5,13 +5,7 @@
  */
 
 import {PageCollector, type ListenerMap} from './PageCollector.js';
-import type {
-  Browser,
-  CDPSession,
-  Frame,
-  Page,
-  Protocol,
-} from './third_party/index.js';
+import type {Browser, CDPSession, Page, Protocol} from './third_party/index.js';
 
 /**
  * Number of messages retained per connection. When exceeded, the oldest
@@ -23,7 +17,14 @@ export const MAX_MESSAGES_PER_CONNECTION = 500;
  * Maximum stored payload length per message. Longer payloads are truncated
  * and marked as such; `payloadLength` keeps the original length.
  */
-export const MAX_STORED_PAYLOAD_LENGTH = 10_000;
+export const MAX_STORED_PAYLOAD_LENGTH = 100_000;
+
+/**
+ * Maximum total stored payload length per connection. When exceeded, the
+ * oldest messages are dropped even if the message count is below
+ * MAX_MESSAGES_PER_CONNECTION.
+ */
+export const MAX_STORED_PAYLOAD_TOTAL = 2_000_000;
 
 const TEXT_OPCODE = 1;
 const BINARY_OPCODE = 2;
@@ -41,6 +42,18 @@ export interface WebSocketMessage {
   receivedAt: Date;
 }
 
+export interface RetentionLimits {
+  maxMessages: number;
+  maxPayloadLength: number;
+  maxPayloadTotal: number;
+}
+
+const DEFAULT_RETENTION_LIMITS: RetentionLimits = {
+  maxMessages: MAX_MESSAGES_PER_CONNECTION,
+  maxPayloadLength: MAX_STORED_PAYLOAD_LENGTH,
+  maxPayloadTotal: MAX_STORED_PAYLOAD_TOTAL,
+};
+
 export class WebSocketConnection {
   readonly url: string;
   status: 'open' | 'closed' = 'open';
@@ -49,9 +62,12 @@ export class WebSocketConnection {
   receivedCount = 0;
   #messages: WebSocketMessage[] = [];
   #nextMessageId = 1;
+  #storedPayloadTotal = 0;
+  #limits: RetentionLimits;
 
-  constructor(url: string) {
+  constructor(url: string, limits: RetentionLimits = DEFAULT_RETENTION_LIMITS) {
     this.url = url;
+    this.#limits = limits;
   }
 
   addFrame(
@@ -68,26 +84,34 @@ export class WebSocketConnection {
     } else {
       this.receivedCount++;
     }
-    const truncated = frame.payloadData.length > MAX_STORED_PAYLOAD_LENGTH;
+    const truncated = frame.payloadData.length > this.#limits.maxPayloadLength;
+    const payload = truncated
+      ? frame.payloadData.slice(0, this.#limits.maxPayloadLength)
+      : frame.payloadData;
     this.#messages.push({
       id: this.#nextMessageId++,
       direction,
       opcode: frame.opcode,
-      payload: truncated
-        ? frame.payloadData.slice(0, MAX_STORED_PAYLOAD_LENGTH)
-        : frame.payloadData,
+      payload,
       truncated,
       payloadLength: frame.payloadData.length,
       receivedAt: new Date(),
     });
-    if (this.#messages.length > MAX_MESSAGES_PER_CONNECTION) {
-      this.#messages.splice(
-        0,
-        this.#messages.length - MAX_MESSAGES_PER_CONNECTION,
-      );
-      this.droppedMessages =
-        this.#nextMessageId - 1 - MAX_MESSAGES_PER_CONNECTION;
+    this.#storedPayloadTotal += payload.length;
+    // Drop the oldest messages when either the message count or the total
+    // stored payload budget is exceeded. The newest message is always kept.
+    while (
+      this.#messages.length > this.#limits.maxMessages ||
+      (this.#messages.length > 1 &&
+        this.#storedPayloadTotal > this.#limits.maxPayloadTotal)
+    ) {
+      const removed = this.#messages.shift();
+      if (!removed) {
+        break;
+      }
+      this.#storedPayloadTotal -= removed.payload.length;
     }
+    this.droppedMessages = this.#nextMessageId - 1 - this.#messages.length;
   }
 
   getMessages(): WebSocketMessage[] {
@@ -131,6 +155,27 @@ export class WebSocketCollector extends PageCollector<WebSocketConnection> {
     this.#subscribers.get(page)?.unsubscribe();
     this.#subscribers.delete(page);
   }
+
+  // Carry open connections over into the current navigation view. The
+  // "framenavigated" split also fires for same-document navigations (for
+  // example history.pushState during the boot of a single-page app), which
+  // do not close WebSockets; without this, a connection created before
+  // such a navigation would silently disappear from the listing while
+  // still serving the page.
+  protected override splitAfterNavigation(page: Page): void {
+    const navigations = this.storage.get(page);
+    if (!navigations) {
+      return;
+    }
+    const open = navigations[0].filter(connection => {
+      return connection.status === 'open';
+    });
+    navigations[0] = navigations[0].filter(connection => {
+      return connection.status !== 'open';
+    });
+    navigations.unshift(open);
+    navigations.splice(this.maxNavigationSaved);
+  }
 }
 
 class WebSocketPageSubscriber {
@@ -149,7 +194,10 @@ class WebSocketPageSubscriber {
     this.#session.on('Network.webSocketFrameSent', this.#onFrameSent);
     this.#session.on('Network.webSocketFrameReceived', this.#onFrameReceived);
     this.#session.on('Network.webSocketClosed', this.#onClosed);
-    this.#page.on('framenavigated', this.#onFrameNavigated);
+    this.#session.on(
+      'Runtime.executionContextsCleared',
+      this.#onExecutionContextsCleared,
+    );
   }
 
   unsubscribe() {
@@ -157,7 +205,10 @@ class WebSocketPageSubscriber {
     this.#session.off('Network.webSocketFrameSent', this.#onFrameSent);
     this.#session.off('Network.webSocketFrameReceived', this.#onFrameReceived);
     this.#session.off('Network.webSocketClosed', this.#onClosed);
-    this.#page.off('framenavigated', this.#onFrameNavigated);
+    this.#session.off(
+      'Runtime.executionContextsCleared',
+      this.#onExecutionContextsCleared,
+    );
     this.#openConnections.clear();
   }
 
@@ -187,12 +238,12 @@ class WebSocketPageSubscriber {
     }
   };
 
-  // Connections do not survive a main frame navigation, but the backend
-  // does not reliably report them as closed.
-  #onFrameNavigated = (frame: Frame) => {
-    if (frame !== this.#page.mainFrame()) {
-      return;
-    }
+  // Connections do not survive a cross-document navigation, but the
+  // backend does not reliably report them as closed. Unlike puppeteer's
+  // "framenavigated" event, executionContextsCleared does not fire for
+  // same-document navigations (history.pushState), which keep WebSockets
+  // alive.
+  #onExecutionContextsCleared = () => {
     for (const connection of this.#openConnections.values()) {
       connection.status = 'closed';
     }

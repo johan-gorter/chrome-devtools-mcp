@@ -14,8 +14,85 @@ import {
   listWebSocketConnections,
   listWebSocketMessages,
 } from '../../src/tools/websockets.js';
+import {WebSocketConnection} from '../../src/WebSocketCollector.js';
 import {serverHooks} from '../server.js';
 import {html, waitExecutionFor, withMcpContext} from '../utils.js';
+
+describe('WebSocketConnection retention', () => {
+  function textFrame(payload: string) {
+    return {opcode: 1, mask: false, payloadData: payload};
+  }
+
+  it('drops the oldest messages beyond the message count limit', () => {
+    const connection = new WebSocketConnection('ws://example', {
+      maxMessages: 3,
+      maxPayloadLength: 100,
+      maxPayloadTotal: 1000,
+    });
+    for (let i = 1; i <= 5; i++) {
+      connection.addFrame('sent', textFrame(`message ${i}`));
+    }
+    assert.strictEqual(connection.droppedMessages, 2);
+    assert.deepStrictEqual(
+      connection.getMessages().map(message => message.id),
+      [3, 4, 5],
+    );
+    assert.strictEqual(connection.getMessage(1), undefined);
+    assert.strictEqual(connection.sentCount, 5);
+  });
+
+  it('drops the oldest messages beyond the payload budget', () => {
+    const connection = new WebSocketConnection('ws://example', {
+      maxMessages: 100,
+      maxPayloadLength: 100,
+      maxPayloadTotal: 25,
+    });
+    connection.addFrame('sent', textFrame('aaaaaaaaaa'));
+    connection.addFrame('sent', textFrame('bbbbbbbbbb'));
+    connection.addFrame('sent', textFrame('cccccccccc'));
+    assert.strictEqual(connection.droppedMessages, 1);
+    assert.deepStrictEqual(
+      connection.getMessages().map(message => message.payload[0]),
+      ['b', 'c'],
+    );
+  });
+
+  it('always keeps the newest message even if over budget', () => {
+    const connection = new WebSocketConnection('ws://example', {
+      maxMessages: 100,
+      maxPayloadLength: 100,
+      maxPayloadTotal: 10,
+    });
+    connection.addFrame('received', textFrame('x'.repeat(50)));
+    assert.strictEqual(connection.getMessages().length, 1);
+    assert.strictEqual(connection.getMessage(1)?.payloadLength, 50);
+  });
+
+  it('truncates payloads beyond the per-message cap', () => {
+    const connection = new WebSocketConnection('ws://example', {
+      maxMessages: 100,
+      maxPayloadLength: 5,
+      maxPayloadTotal: 1000,
+    });
+    connection.addFrame('received', textFrame('abcdefghij'));
+    const message = connection.getMessage(1);
+    assert.strictEqual(message?.payload, 'abcde');
+    assert.strictEqual(message.truncated, true);
+    assert.strictEqual(message.payloadLength, 10);
+  });
+
+  it('ignores control frames', () => {
+    const connection = new WebSocketConnection('ws://example');
+    connection.addFrame('received', {opcode: 9, mask: false, payloadData: ''});
+    connection.addFrame('received', {
+      opcode: 10,
+      mask: false,
+      payloadData: '',
+    });
+    assert.strictEqual(connection.getMessages().length, 0);
+    assert.strictEqual(connection.receivedCount, 0);
+  });
+});
 
 describe('websockets', () => {
   const server = serverHooks();
@@ -149,7 +226,7 @@ describe('websockets', () => {
     await withMcpContext(async (response, context) => {
       setupRoutes();
       await openWebSocket(context);
-      const bigPayload = 'x'.repeat(12_000);
+      const bigPayload = 'x'.repeat(120_000);
       await sendAndAwaitEcho(context, bigPayload);
 
       await callToolUntil(
@@ -166,11 +243,87 @@ describe('websockets', () => {
           ),
         () =>
           response.responseLines[0]?.includes(
-            'truncated from 12000 to 10000',
+            'truncated from 120000 to 100000',
           ) === true,
       );
       const payloadLine = response.responseLines[2];
-      assert.strictEqual(payloadLine, 'x'.repeat(10_000));
+      assert.strictEqual(payloadLine, 'x'.repeat(100_000));
+    });
+  });
+
+  it('keeps connections visible across same-document navigations', async () => {
+    await withMcpContext(async (response, context) => {
+      setupRoutes();
+      await openWebSocket(context);
+      const page = context.getSelectedPptrPage();
+      await sendAndAwaitEcho(context, 'before pushState');
+
+      // Single-page apps rewrite the URL during boot; this must neither
+      // hide the connection nor stop the recording of its messages.
+      await page.evaluate(`history.pushState({}, '', '/pushed-route')`);
+      await sendAndAwaitEcho(context, 'after pushState');
+
+      await callToolUntil(
+        response,
+        context,
+        () =>
+          listWebSocketConnections.handler(
+            {params: {}, page: context.getSelectedMcpPage()},
+            response,
+            context,
+          ),
+        () =>
+          response.responseLines[0]?.includes('wsId=1') === true &&
+          response.responseLines[0].includes('[open]') &&
+          response.responseLines[0].includes('2 sent, 2 received'),
+      );
+
+      await callToolUntil(
+        response,
+        context,
+        () =>
+          listWebSocketMessages.handler(
+            {params: {wsId: 1}, page: context.getSelectedMcpPage()},
+            response,
+            context,
+          ),
+        () => {
+          const text = response.responseLines.join('\n');
+          return (
+            text.includes('before pushState') &&
+            text.includes('after pushState')
+          );
+        },
+      );
+    });
+  });
+
+  it('preserves closed connections over navigations', async () => {
+    await withMcpContext(async (response, context) => {
+      setupRoutes();
+      await openWebSocket(context);
+      await sendAndAwaitEcho(context, 'from the first page');
+
+      const page = context.getSelectedPptrPage();
+      await page.goto(server.getRoute('/'));
+
+      await callToolUntil(
+        response,
+        context,
+        () =>
+          listWebSocketConnections.handler(
+            {
+              params: {includePreservedConnections: true},
+              page: context.getSelectedMcpPage(),
+            },
+            response,
+            context,
+          ),
+        () => {
+          const text = response.responseLines.join('\n');
+          return text.includes('wsId=1') && text.includes('[closed]');
+        },
+      );
     });
   });
 

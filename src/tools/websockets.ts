@@ -25,24 +25,38 @@ function formatPreview(message: WebSocketMessage): string {
       ? `${singleLine.slice(0, PREVIEW_LENGTH)}…`
       : singleLine;
   const time = message.receivedAt.toISOString().slice(11, 23);
-  return `#${message.id} [${message.direction} ${time}]${kind} (${message.payloadLength} chars): ${preview}`;
+  const size = message.truncated
+    ? `${message.payloadLength} chars, stored truncated to ${message.payload.length}`
+    : `${message.payloadLength} chars`;
+  return `#${message.id} [${message.direction} ${time}]${kind} (${size}): ${preview}`;
 }
 
 export const listWebSocketConnections = definePageTool({
   name: LIST_CONNECTIONS_TOOL_NAME,
-  description: `List the WebSocket connections of the currently selected page since the last navigation. Use ${LIST_MESSAGES_TOOL_NAME} to inspect the messages of a connection.`,
+  description: `List the WebSocket connections of the currently selected page. Open connections are always listed, including connections created early during page load; closed connections are listed until the page navigates. Traffic is captured from the moment the page is inspected: messages exchanged before that are not recorded, so reload the page to capture a connection from its start. Use ${LIST_MESSAGES_TOOL_NAME} to inspect the messages of a connection; wsIds are scoped to the page that created the connection.`,
   annotations: {
     category: ToolCategory.NETWORK,
     readOnlyHint: true,
   },
-  schema: {},
+  schema: {
+    includePreservedConnections: zod
+      .boolean()
+      .default(false)
+      .optional()
+      .describe(
+        'Set to true to also return closed connections preserved over the last 3 navigations.',
+      ),
+  },
   blockedByDialog: false,
   verifyFilesSchema: [],
   handler: async (request, response, context) => {
-    const connections = context.getWebSocketConnections(request.page);
+    const connections = context.getWebSocketConnections(
+      request.page,
+      request.params.includePreservedConnections,
+    );
     if (!connections.length) {
       response.appendResponseLine(
-        'No WebSocket connections were created on the selected page since the last navigation.',
+        'No WebSocket connections were captured on the selected page. Connections are captured from the moment the page is inspected; reload the page to capture connections created during page load.',
       );
       return;
     }
@@ -60,7 +74,7 @@ export const listWebSocketConnections = definePageTool({
 
 export const listWebSocketMessages = definePageTool({
   name: LIST_MESSAGES_TOOL_NAME,
-  description: `List the messages of a WebSocket connection of the currently selected page, oldest first. Message payloads are shown as a single-line preview; use ${GET_MESSAGE_TOOL_NAME} for a full payload. Only data messages are recorded (no ping/pong control frames). Per connection the last 500 messages are retained and stored payloads are capped at ${MAX_STORED_PAYLOAD_LENGTH} characters.`,
+  description: `List the messages of a WebSocket connection of the currently selected page, oldest first. Message payloads are shown as a single-line preview; use ${GET_MESSAGE_TOOL_NAME} for a full payload. Only data messages are recorded (no ping/pong control frames). Retention is bounded per connection: the last 500 messages within a 2MB budget, and stored payloads are capped at ${MAX_STORED_PAYLOAD_LENGTH} characters (longer ones are marked truncated).`,
   annotations: {
     category: ToolCategory.NETWORK,
     readOnlyHint: true,
@@ -154,7 +168,7 @@ export const getWebSocketMessage = definePageTool({
       .string()
       .optional()
       .describe(
-        'The absolute or relative path of a file to save the payload to. If omitted, the payload is returned inline.',
+        'The absolute or relative path of a file to save the payload to. If omitted, the payload is returned inline. The file is saved with a .txt extension and the path must be inside the configured workspace roots.',
       ),
   },
   blockedByDialog: false,
@@ -171,7 +185,7 @@ export const getWebSocketMessage = definePageTool({
     const description = `Message #${message.id} [${message.direction}] on ${connection.url}${message.opcode === 2 ? ', binary (base64)' : ''}`;
     if (message.truncated) {
       response.appendResponseLine(
-        `${description}. The stored payload was truncated from ${message.payloadLength} to ${MAX_STORED_PAYLOAD_LENGTH} characters.`,
+        `${description}. The stored payload was truncated from ${message.payloadLength} to ${message.payload.length} characters.`,
       );
     } else {
       response.appendResponseLine(`${description}:`);
