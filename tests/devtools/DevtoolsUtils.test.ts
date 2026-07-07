@@ -90,6 +90,24 @@ describe('UniverseManager', () => {
     });
   });
 
+  it('ignores pauses after a navigation', async () => {
+    server.addHtmlRoute('/pause-test', html`<div>Test</div>`);
+
+    await withBrowser(async (browser, page) => {
+      const manager = new UniverseManager(browser);
+      await manager.init([page]);
+      assert.ok(manager.get(page));
+
+      // The backend resets `Debugger.setSkipAllPauses` when the page
+      // navigates. Unless the flag is reapplied, the `debugger;` statement
+      // pauses and this evaluation never returns.
+      await page.goto(server.getRoute('/pause-test'));
+
+      const result = await page.evaluate('debugger; 1 + 1');
+      assert.strictEqual(result, 2);
+    });
+  });
+
   it('disables network domain', async () => {
     server.addHtmlRoute('/test', html`<div>Test</div>`);
 
