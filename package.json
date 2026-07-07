@@ -4,8 +4,8 @@
   "description": "Fork of chrome-devtools-mcp with logpoint tools, for testing before an upstream contribution",
   "type": "module",
   "bin": {
-    "chrome-devtools-mcp": "./build/src/bin/chrome-devtools-mcp.js",
-    "chrome-devtools": "./build/src/bin/chrome-devtools.js"
+    "chrome-devtools-mcp": "build/src/bin/chrome-devtools-mcp.js",
+    "chrome-devtools": "build/src/bin/chrome-devtools.js"
   },
   "main": "./build/src/index.js",
   "scripts": {
@@ -39,7 +39,10 @@
     "!*.tsbuildinfo",
     "!*.js.map"
   ],
-  "repository": "johan-gorter/chrome-devtools-mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johan-gorter/chrome-devtools-mcp.git"
+  },
   "author": "Google LLC",
   "license": "Apache-2.0",
   "bugs": {
