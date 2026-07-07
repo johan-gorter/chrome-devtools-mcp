@@ -498,6 +498,18 @@ export async function createStackTraceForConsoleMessage(
   return undefined;
 }
 
+/**
+ * Returns the debugger model of the universe's main target, used to access
+ * parsed scripts and their source maps.
+ */
+export function getDebuggerModel(
+  devTools: TargetUniverse,
+): DevTools.DebuggerModel | null {
+  return devTools.target.model(
+    DevTools.DebuggerModel,
+  ) as DevTools.DebuggerModel | null;
+}
+
 export async function createStackTrace(
   devTools: TargetUniverse,
   rawStackTrace: Protocol.Runtime.StackTrace,

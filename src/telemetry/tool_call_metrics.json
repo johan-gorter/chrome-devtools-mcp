@@ -914,5 +914,22 @@
         "argType": "number"
       }
     ]
+  },
+  {
+    "name": "list_scripts",
+    "args": [
+      {
+        "name": "filter_length",
+        "argType": "number"
+      },
+      {
+        "name": "page_size",
+        "argType": "number"
+      },
+      {
+        "name": "page_idx",
+        "argType": "number"
+      }
+    ]
   }
 ]

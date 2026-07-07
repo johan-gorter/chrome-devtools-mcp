@@ -39,10 +39,11 @@ Addional tooling can be enabled by providing the following flags:
 
 Prefer `set_logpoint` over editing source code to add temporary `console.log()` calls:
 
-1. Set: `set_logpoint` with the script `url` (or `urlRegex`), a 1-based `lineNumber` and an `expression` formatted like `console.log()` arguments (local variables are in scope).
-2. Trigger: Interact with the page (or `evaluate_script`) so the line executes.
-3. Read: `list_console_messages` shows the logged output.
-4. Clean up: `remove_logpoint` when done; logpoints otherwise stay active across navigations until the page is closed.
+1. Locate: `list_scripts` with a `filter` shows the parsed scripts and which bundle contains a given original source file (via source maps).
+2. Set: `set_logpoint` with the script `url` (or `urlRegex`), a 1-based `lineNumber` and an `expression` formatted like `console.log()` arguments (local variables are in scope). Original source files (e.g. `src/app.ts`) are resolved through source maps and re-resolved automatically after rebuilds.
+3. Trigger: Interact with the page (or `evaluate_script`) so the line executes.
+4. Read: `list_console_messages` shows the logged output.
+5. Clean up: `remove_logpoint` when done; logpoints otherwise stay active across navigations until the page is closed.
 
 ### Parallel execution
 
