@@ -572,6 +572,34 @@ export const commands: Commands = {
       },
     },
   },
+  get_websocket_message: {
+    description:
+      'Get the payload of a WebSocket message by its id. You can list messages with list_websocket_messages. Stored payloads are capped at 10000 characters.',
+    category: 'Network',
+    args: {
+      wsId: {
+        name: 'wsId',
+        type: 'integer',
+        description:
+          'The id of the WebSocket connection as reported by list_websocket_connections.',
+        required: true,
+      },
+      messageId: {
+        name: 'messageId',
+        type: 'integer',
+        description:
+          'The id of the message as reported by list_websocket_messages.',
+        required: true,
+      },
+      filePath: {
+        name: 'filePath',
+        type: 'string',
+        description:
+          'The absolute or relative path of a file to save the payload to. If omitted, the payload is returned inline.',
+        required: false,
+      },
+    },
+  },
   handle_dialog: {
     description:
       'If a browser dialog was opened, use this command to handle it',
@@ -790,6 +818,55 @@ export const commands: Commands = {
       'Lists all WebMCP tools the page exposes. (requires flag: --categoryExperimentalWebmcp=true)',
     category: 'WebMCP',
     args: {},
+  },
+  list_websocket_connections: {
+    description:
+      'List the WebSocket connections of the currently selected page since the last navigation. Use list_websocket_messages to inspect the messages of a connection.',
+    category: 'Network',
+    args: {},
+  },
+  list_websocket_messages: {
+    description:
+      'List the messages of a WebSocket connection of the currently selected page, oldest first. Message payloads are shown as a single-line preview; use get_websocket_message for a full payload. Only data messages are recorded (no ping/pong control frames). Per connection the last 500 messages are retained and stored payloads are capped at 10000 characters.',
+    category: 'Network',
+    args: {
+      wsId: {
+        name: 'wsId',
+        type: 'integer',
+        description:
+          'The id of the WebSocket connection as reported by list_websocket_connections.',
+        required: true,
+      },
+      direction: {
+        name: 'direction',
+        type: 'string',
+        description:
+          'Only return messages sent by the page ("sent") or received from the server ("received").',
+        required: false,
+        enum: ['sent', 'received'],
+      },
+      filter: {
+        name: 'filter',
+        type: 'string',
+        description:
+          'Case-sensitive substring; only messages whose payload contains it are returned.',
+        required: false,
+      },
+      pageSize: {
+        name: 'pageSize',
+        type: 'integer',
+        description:
+          'Maximum number of messages to return. When omitted, returns all retained messages.',
+        required: false,
+      },
+      pageIdx: {
+        name: 'pageIdx',
+        type: 'integer',
+        description:
+          'Page number to return (0-based). When omitted, returns the first page.',
+        required: false,
+      },
+    },
   },
   navigate_page: {
     description:

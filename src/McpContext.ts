@@ -58,6 +58,8 @@ import type {
 } from './types.js';
 import {getTempFilePath, resolveCanonicalPath} from './utils/files.js';
 import {getNetworkMultiplierFromString} from './WaitForHelper.js';
+import {WebSocketCollector} from './WebSocketCollector.js';
+import type {WebSocketConnection} from './WebSocketCollector.js';
 
 interface McpContextOptions {
   // Whether the DevTools windows are exposed as pages for debugging of DevTools.
@@ -91,6 +93,7 @@ export class McpContext implements Context {
   #selectedPage?: McpPage;
   #networkCollector: NetworkCollector;
   #consoleCollector: ConsoleCollector;
+  #webSocketCollector: WebSocketCollector;
   #devtoolsUniverseManager: UniverseManager;
   #serviceWorkerConsoleCollector: ServiceWorkerConsoleCollector;
 
@@ -146,6 +149,7 @@ export class McpContext implements Context {
     this.#serviceWorkerConsoleCollector = new ServiceWorkerConsoleCollector(
       this.browser,
     );
+    this.#webSocketCollector = new WebSocketCollector(this.browser);
     this.#devtoolsUniverseManager = new UniverseManager(this.browser);
   }
 
@@ -154,6 +158,7 @@ export class McpContext implements Context {
     const workers = await this.createExtensionServiceWorkersSnapshot();
     await this.#networkCollector.init(pages);
     await this.#consoleCollector.init(pages);
+    await this.#webSocketCollector.init(pages);
     await this.#devtoolsUniverseManager.init(pages);
     await this.#serviceWorkerConsoleCollector.init(workers);
   }
@@ -161,6 +166,7 @@ export class McpContext implements Context {
   dispose() {
     this.#networkCollector.dispose();
     this.#consoleCollector.dispose();
+    this.#webSocketCollector.dispose();
     this.#devtoolsUniverseManager.dispose();
     this.#serviceWorkerConsoleCollector.dispose();
     for (const mcpPage of this.#mcpPages.values()) {
@@ -315,6 +321,26 @@ export class McpContext implements Context {
     );
   }
 
+  getWebSocketConnections(page: McpPage): WebSocketConnection[] {
+    return this.#webSocketCollector.getData(page.pptrPage);
+  }
+
+  getWebSocketConnectionStableId(connection: WebSocketConnection): number {
+    return this.#webSocketCollector.getIdForResource(connection);
+  }
+
+  getWebSocketConnectionById(page: McpPage, wsId: number): WebSocketConnection {
+    const connection = this.#webSocketCollector.find(page.pptrPage, item => {
+      return this.#webSocketCollector.getIdForResource(item) === wsId;
+    });
+    if (!connection) {
+      throw new Error(
+        `No WebSocket connection with wsId=${wsId} on the selected page.`,
+      );
+    }
+    return connection;
+  }
+
   getDevToolsUniverse(page: McpPage): TargetUniverse | null {
     return this.#devtoolsUniverseManager.get(page.pptrPage);
   }
@@ -351,6 +377,7 @@ export class McpContext implements Context {
     this.selectPage(this.#getMcpPage(page));
     this.#networkCollector.addPage(page);
     this.#consoleCollector.addPage(page);
+    this.#webSocketCollector.addPage(page);
     return this.#getMcpPage(page);
   }
   async closePage(pageId: number): Promise<void> {
