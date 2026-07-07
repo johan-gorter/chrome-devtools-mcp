@@ -1,5 +1,5 @@
 {
-  "name": "@johan-gorter/chrome-devtools-mcp",
+  "name": "@johangorter/chrome-devtools-mcp",
   "version": "1.5.0-logpoints.0",
   "description": "Fork of chrome-devtools-mcp with logpoint tools, for testing before an upstream contribution",
   "type": "module",

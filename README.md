@@ -2,7 +2,7 @@
 
 > [!IMPORTANT]
 > This is a fork of [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)
-> published as `@johan-gorter/chrome-devtools-mcp` to test the new logpoint tools
+> published as `@johangorter/chrome-devtools-mcp` to test the new logpoint tools
 > (`set_logpoint`, `remove_logpoint`, `list_logpoints`) before contributing them
 > upstream. For anything else, use the official package.
 
