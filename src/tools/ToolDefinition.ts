@@ -11,6 +11,7 @@ import type {
   HeapSnapshotDetailedClassDiff,
   DuplicateStringGroup,
 } from '../HeapSnapshotManager.js';
+import type {Logpoint, LogpointOptions} from '../LogpointManager.js';
 import type {McpPage} from '../McpPage.js';
 import {zod} from '../third_party/index.js';
 import type {
@@ -315,6 +316,9 @@ export type ContextPage = Readonly<{
   getDialog(): Dialog | undefined;
   clearDialog(): void;
   throwIfDialogOpen(): void;
+  setLogpoint(options: LogpointOptions): Promise<Logpoint>;
+  removeLogpoint(id?: number): Promise<Logpoint[]>;
+  getLogpoints(): Logpoint[];
   waitForEventsAfterAction(
     action: () => Promise<unknown>,
     options?: {timeout?: number; handleDialog?: 'accept' | 'dismiss' | string},

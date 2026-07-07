@@ -876,5 +876,43 @@
         "argType": "number"
       }
     ]
+  },
+  {
+    "name": "list_logpoints",
+    "args": []
+  },
+  {
+    "name": "remove_logpoint",
+    "args": [
+      {
+        "name": "id",
+        "argType": "number"
+      }
+    ]
+  },
+  {
+    "name": "set_logpoint",
+    "args": [
+      {
+        "name": "url_length",
+        "argType": "number"
+      },
+      {
+        "name": "url_regex_length",
+        "argType": "number"
+      },
+      {
+        "name": "line_number",
+        "argType": "number"
+      },
+      {
+        "name": "column_number",
+        "argType": "number"
+      },
+      {
+        "name": "expression_length",
+        "argType": "number"
+      }
+    ]
   }
 ]

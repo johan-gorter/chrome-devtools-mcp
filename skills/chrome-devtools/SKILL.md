@@ -35,6 +35,15 @@ Addional tooling can be enabled by providing the following flags:
 - **Visual inspection**: `take_screenshot` (when user needs to see visual state)
 - **Additional details**: `evaluate_script` for data not in accessibility tree
 
+### Debugging with logpoints
+
+Prefer `set_logpoint` over editing source code to add temporary `console.log()` calls:
+
+1. Set: `set_logpoint` with the script `url` (or `urlRegex`), a 1-based `lineNumber` and an `expression` formatted like `console.log()` arguments (local variables are in scope).
+2. Trigger: Interact with the page (or `evaluate_script`) so the line executes.
+3. Read: `list_console_messages` shows the logged output.
+4. Clean up: `remove_logpoint` when done; logpoints otherwise stay active across navigations until the page is closed.
+
 ### Parallel execution
 
 You can send multiple tool calls in parallel, but maintain correct order: navigate → wait → snapshot → interact.

@@ -5,6 +5,8 @@
  */
 
 import {logger} from './logger.js';
+import type {Logpoint, LogpointOptions} from './LogpointManager.js';
+import {LogpointManager} from './LogpointManager.js';
 import {TextSnapshot} from './TextSnapshot.js';
 import type {
   Dialog,
@@ -59,6 +61,10 @@ export class McpPage implements ContextPage {
   #dialog?: Dialog;
   #dialogHandler: (dialog: Dialog) => void;
 
+  // Logpoints, created lazily so pages without logpoints do not get a
+  // Debugger domain enabled.
+  #logpointManager?: LogpointManager;
+
   thirdPartyDeveloperTools: ToolGroups = [];
 
   constructor(page: Page, id: number) {
@@ -92,6 +98,27 @@ export class McpPage implements ContextPage {
 
   getThirdPartyDeveloperTools(): ToolGroups {
     return this.thirdPartyDeveloperTools;
+  }
+
+  setLogpoint(options: LogpointOptions): Promise<Logpoint> {
+    if (!this.#logpointManager) {
+      this.#logpointManager = new LogpointManager(this.pptrPage);
+    }
+    return this.#logpointManager.setLogpoint(options);
+  }
+
+  removeLogpoint(id?: number): Promise<Logpoint[]> {
+    if (!this.#logpointManager) {
+      if (id === undefined) {
+        return Promise.resolve([]);
+      }
+      throw new Error(`No logpoint found with id ${id}.`);
+    }
+    return this.#logpointManager.removeLogpoint(id);
+  }
+
+  getLogpoints(): Logpoint[] {
+    return this.#logpointManager?.getLogpoints() ?? [];
   }
 
   getWebMcpTools(): WebMCPTool[] {
@@ -143,6 +170,8 @@ export class McpPage implements ContextPage {
 
   dispose(): void {
     this.pptrPage.off('dialog', this.#dialogHandler);
+    this.#logpointManager?.dispose();
+    this.#logpointManager = undefined;
   }
 
   async executeThirdPartyDeveloperTool(

@@ -30,11 +30,14 @@
 - **[Network](#network)** (2 tools)
   - [`get_network_request`](#get_network_request)
   - [`list_network_requests`](#list_network_requests)
-- **[Debugging](#debugging)** (8 tools)
+- **[Debugging](#debugging)** (11 tools)
   - [`evaluate_script`](#evaluate_script)
   - [`get_console_message`](#get_console_message)
   - [`lighthouse_audit`](#lighthouse_audit)
   - [`list_console_messages`](#list_console_messages)
+  - [`list_logpoints`](#list_logpoints)
+  - [`remove_logpoint`](#remove_logpoint)
+  - [`set_logpoint`](#set_logpoint)
   - [`take_screenshot`](#take_screenshot)
   - [`take_snapshot`](#take_snapshot)
   - [`screencast_start`](#screencast_start)
@@ -394,6 +397,38 @@
 - **pageSize** (integer) _(optional)_: Maximum number of messages to return. When omitted, returns all messages.
 - **serviceWorkerId** (string) _(optional)_: Filter messages to only return messages of the specified service worker.
 - **types** (array) _(optional)_: Filter messages to only return messages of the specified resource types. When omitted or empty, returns all messages.
+
+---
+
+### `list_logpoints`
+
+**Description:** List the logpoints that are currently set on the selected page. Logpoints are set with [`set_logpoint`](#set_logpoint).
+
+**Parameters:** None
+
+---
+
+### `remove_logpoint`
+
+**Description:** Remove a logpoint that was set with [`set_logpoint`](#set_logpoint) from the currently selected page.
+
+**Parameters:**
+
+- **id** (integer) _(optional)_: The id of the logpoint to remove, as reported by [`set_logpoint`](#set_logpoint) or [`list_logpoints`](#list_logpoints). When omitted, all logpoints on the page are removed.
+
+---
+
+### `set_logpoint`
+
+**Description:** Set a logpoint in a script of the currently selected page. A logpoint logs the value of one or more expressions to the console every time a line of code executes, without pausing execution and without modifying the source code. It works like logpoints in the Chrome DevTools Sources panel and replaces temporarily instrumenting code with console.log() calls. The logged output appears as regular console messages that can be read with [`list_console_messages`](#list_console_messages). Logpoints stay active across page reloads and navigations until they are removed or the page is closed.
+
+**Parameters:**
+
+- **expression** (string) **(required)**: The expression(s) to log, formatted like the arguments of console.log(). Evaluated in the scope of the logpoint location, so local variables are accessible. Example: 'cart total:', cart.total, cart.items.length
+- **lineNumber** (integer) **(required)**: The 1-based line number to log at. The logpoint fires whenever this line executes. If the line contains no executable code, the logpoint is moved to the next possible location.
+- **columnNumber** (integer) _(optional)_: Optional 1-based column number, useful for lines containing multiple statements (for example, in minified scripts).
+- **url** (string) _(optional)_: The full URL of the script to set the logpoint in. Specify either url or urlRegex, not both.
+- **urlRegex** (string) _(optional)_: A regular expression matching the URL of the script(s) to set the logpoint in, for example "app\.js$". Specify either url or urlRegex, not both.
 
 ---
 
