@@ -12,6 +12,7 @@ import {fileURLToPath, pathToFileURL} from 'node:url';
 
 import type {TargetUniverse} from './devtools/DevtoolsUtils.js';
 import {
+  getDebuggerModel,
   overrideDevToolsGlobals,
   UniverseManager,
 } from './devtools/DevtoolsUtils.js';
@@ -649,6 +650,10 @@ export class McpContext implements Context {
       let mcpPage = this.#mcpPages.get(page);
       if (!mcpPage) {
         mcpPage = new McpPage(page, this.#nextPageId++);
+        mcpPage.debuggerModelProvider = () => {
+          const universe = this.#devtoolsUniverseManager.get(page);
+          return universe ? getDebuggerModel(universe) : null;
+        };
         this.#mcpPages.set(page, mcpPage);
         // We emulate a focused page for all pages to support multi-agent workflows.
         void page.emulateFocusedPage(true).catch(error => {

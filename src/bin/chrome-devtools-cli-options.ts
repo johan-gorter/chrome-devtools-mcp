@@ -757,6 +757,34 @@ export const commands: Commands = {
     category: 'Navigation automation',
     args: {},
   },
+  list_scripts: {
+    description:
+      'List the scripts parsed by the currently selected page, including the original source files from their source maps. Useful to find the correct location for set_logpoint, for example which bundle contains a given original source file.',
+    category: 'Debugging',
+    args: {
+      filter: {
+        name: 'filter',
+        type: 'string',
+        description:
+          'Case-insensitive substring matched against script URLs and against the original source file paths from source maps. When omitted, all scripts are listed.',
+        required: false,
+      },
+      pageSize: {
+        name: 'pageSize',
+        type: 'integer',
+        description:
+          'Maximum number of scripts to return. When omitted, returns all scripts.',
+        required: false,
+      },
+      pageIdx: {
+        name: 'pageIdx',
+        type: 'integer',
+        description:
+          'Page number to return (0-based). When omitted, returns the first page.',
+        required: false,
+      },
+    },
+  },
   list_webmcp_tools: {
     description:
       'Lists all WebMCP tools the page exposes. (requires flag: --categoryExperimentalWebmcp=true)',
@@ -1019,28 +1047,28 @@ export const commands: Commands = {
   },
   set_logpoint: {
     description:
-      'Set a logpoint in a script of the currently selected page. A logpoint logs the value of one or more expressions to the console every time a line of code executes, without pausing execution and without modifying the source code. It works like logpoints in the Chrome DevTools Sources panel and replaces temporarily instrumenting code with console.log() calls. The logged output appears as regular console messages that can be read with list_console_messages. Logpoints stay active across page reloads and navigations until they are removed or the page is closed.',
+      'Set a logpoint in a script of the currently selected page. A logpoint logs the value of one or more expressions to the console every time a line of code executes, without pausing execution and without modifying the source code. It works like logpoints in the Chrome DevTools Sources panel and replaces temporarily instrumenting code with console.log() calls. The location may be given as the URL of a script as served to the browser, or as an original source file (for example a TypeScript file) which is resolved through the source maps of the parsed scripts and re-resolved automatically when a rebuilt bundle is loaded. Use list_scripts to inspect the available scripts and their original sources. The logged output appears as regular console messages that can be read with list_console_messages. Logpoints stay active across page reloads and navigations until they are removed or the page is closed.',
     category: 'Debugging',
     args: {
       url: {
         name: 'url',
         type: 'string',
         description:
-          'The full URL of the script to set the logpoint in. Specify either url or urlRegex, not both.',
+          'The URL of the script to set the logpoint in, or the path of an original source file resolvable through source maps (suffix match, e.g. "src/app.ts" or "app.ts"). Specify either url or urlRegex, not both.',
         required: false,
       },
       urlRegex: {
         name: 'urlRegex',
         type: 'string',
         description:
-          'A regular expression matching the URL of the script(s) to set the logpoint in, for example "app\\.js$". Specify either url or urlRegex, not both.',
+          'A regular expression matching the URL of the script(s) or source-map source to set the logpoint in, for example "app\\.js$". Specify either url or urlRegex, not both.',
         required: false,
       },
       lineNumber: {
         name: 'lineNumber',
         type: 'integer',
         description:
-          'The 1-based line number to log at. The logpoint fires whenever this line executes. If the line contains no executable code, the logpoint is moved to the next possible location.',
+          'The 1-based line number to log at, in the coordinates of the given url (for original source files: the line in that source file). The logpoint fires whenever this line executes. If the line contains no executable code, the logpoint is moved to the next possible location.',
         required: true,
       },
       columnNumber: {

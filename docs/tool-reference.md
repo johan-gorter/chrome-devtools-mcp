@@ -30,12 +30,13 @@
 - **[Network](#network)** (2 tools)
   - [`get_network_request`](#get_network_request)
   - [`list_network_requests`](#list_network_requests)
-- **[Debugging](#debugging)** (11 tools)
+- **[Debugging](#debugging)** (12 tools)
   - [`evaluate_script`](#evaluate_script)
   - [`get_console_message`](#get_console_message)
   - [`lighthouse_audit`](#lighthouse_audit)
   - [`list_console_messages`](#list_console_messages)
   - [`list_logpoints`](#list_logpoints)
+  - [`list_scripts`](#list_scripts)
   - [`remove_logpoint`](#remove_logpoint)
   - [`set_logpoint`](#set_logpoint)
   - [`take_screenshot`](#take_screenshot)
@@ -408,6 +409,18 @@
 
 ---
 
+### `list_scripts`
+
+**Description:** List the scripts parsed by the currently selected page, including the original source files from their source maps. Useful to find the correct location for [`set_logpoint`](#set_logpoint), for example which bundle contains a given original source file.
+
+**Parameters:**
+
+- **filter** (string) _(optional)_: Case-insensitive substring matched against script URLs and against the original source file paths from source maps. When omitted, all scripts are listed.
+- **pageIdx** (integer) _(optional)_: Page number to return (0-based). When omitted, returns the first page.
+- **pageSize** (integer) _(optional)_: Maximum number of scripts to return. When omitted, returns all scripts.
+
+---
+
 ### `remove_logpoint`
 
 **Description:** Remove a logpoint that was set with [`set_logpoint`](#set_logpoint) from the currently selected page.
@@ -420,15 +433,15 @@
 
 ### `set_logpoint`
 
-**Description:** Set a logpoint in a script of the currently selected page. A logpoint logs the value of one or more expressions to the console every time a line of code executes, without pausing execution and without modifying the source code. It works like logpoints in the Chrome DevTools Sources panel and replaces temporarily instrumenting code with console.log() calls. The logged output appears as regular console messages that can be read with [`list_console_messages`](#list_console_messages). Logpoints stay active across page reloads and navigations until they are removed or the page is closed.
+**Description:** Set a logpoint in a script of the currently selected page. A logpoint logs the value of one or more expressions to the console every time a line of code executes, without pausing execution and without modifying the source code. It works like logpoints in the Chrome DevTools Sources panel and replaces temporarily instrumenting code with console.log() calls. The location may be given as the URL of a script as served to the browser, or as an original source file (for example a TypeScript file) which is resolved through the source maps of the parsed scripts and re-resolved automatically when a rebuilt bundle is loaded. Use [`list_scripts`](#list_scripts) to inspect the available scripts and their original sources. The logged output appears as regular console messages that can be read with [`list_console_messages`](#list_console_messages). Logpoints stay active across page reloads and navigations until they are removed or the page is closed.
 
 **Parameters:**
 
 - **expression** (string) **(required)**: The expression(s) to log, formatted like the arguments of console.log(). Evaluated in the scope of the logpoint location, so local variables are accessible. Example: 'cart total:', cart.total, cart.items.length
-- **lineNumber** (integer) **(required)**: The 1-based line number to log at. The logpoint fires whenever this line executes. If the line contains no executable code, the logpoint is moved to the next possible location.
+- **lineNumber** (integer) **(required)**: The 1-based line number to log at, in the coordinates of the given url (for original source files: the line in that source file). The logpoint fires whenever this line executes. If the line contains no executable code, the logpoint is moved to the next possible location.
 - **columnNumber** (integer) _(optional)_: Optional 1-based column number, useful for lines containing multiple statements (for example, in minified scripts).
-- **url** (string) _(optional)_: The full URL of the script to set the logpoint in. Specify either url or urlRegex, not both.
-- **urlRegex** (string) _(optional)_: A regular expression matching the URL of the script(s) to set the logpoint in, for example "app\.js$". Specify either url or urlRegex, not both.
+- **url** (string) _(optional)_: The URL of the script to set the logpoint in, or the path of an original source file resolvable through source maps (suffix match, e.g. "src/app.ts" or "app.ts"). Specify either url or urlRegex, not both.
+- **urlRegex** (string) _(optional)_: A regular expression matching the URL of the script(s) or source-map source to set the logpoint in, for example "app\.js$". Specify either url or urlRegex, not both.
 
 ---
 
