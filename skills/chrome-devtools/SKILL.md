@@ -45,6 +45,8 @@ Prefer `set_logpoint` over editing source code to add temporary `console.log()` 
 4. Read: `list_console_messages` shows the logged output.
 5. Clean up: `remove_logpoint` when done; logpoints otherwise stay active across navigations until the page is closed.
 
+Note: on the first page load after a rebuild, source-map-resolved logpoints in load-time code do not log yet; reload once more before concluding the line does not run.
+
 ### Inspecting WebSocket traffic
 
 1. Connections: `list_websocket_connections` lists the WebSocket connections of the selected page with their `wsId`.
