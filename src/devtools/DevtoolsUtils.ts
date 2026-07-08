@@ -252,9 +252,38 @@ const DEFAULT_FACTORY: TargetUniverseFactoryFn = async (page: Page) => {
 // Note that calling `setSkipAllPauses` only affects the session on which it was
 // sent. This means DevTools can still pause, step and do whatever. We just won't
 // see the `Debugger.paused`/`Debugger.resumed` events on the MCP side.
+//
+// The backend resets the skip flag when the page navigates, so it has to be
+// reapplied when the global object is cleared. Otherwise this session accepts
+// pauses again (for example for `debugger;` statements) and, because nothing
+// ever resumes them, the page hangs forever.
 const SKIP_ALL_PAUSES = {
   modelAdded(model: DevTools.DebuggerModel): void {
-    void model.agent.invoke_setSkipAllPauses({skip: true});
+    const skipAllPauses = () => {
+      void model.agent.invoke_setSkipAllPauses({skip: true});
+    };
+    skipAllPauses();
+    model.addEventListener(
+      'GlobalObjectCleared' as Parameters<
+        DevTools.DebuggerModel['addEventListener']
+      >[0],
+      skipAllPauses,
+    );
+    // A pause can still slip in between the navigation and the flag being
+    // reapplied. This session receives no pause events while the skip flag
+    // is active, so a pause event always means the flag was lost: reapply it
+    // and resume so that the page does not hang. Pauses triggered by other
+    // clients (such as an open DevTools window) are not observed by this
+    // session and remain unaffected.
+    model.addEventListener(
+      'DebuggerPaused' as Parameters<
+        DevTools.DebuggerModel['addEventListener']
+      >[0],
+      () => {
+        skipAllPauses();
+        model.resume();
+      },
+    );
   },
 
   modelRemoved(): void {
@@ -467,6 +496,18 @@ export async function createStackTraceForConsoleMessage(
     return createStackTrace(devTools, rawStackTrace, message._targetId());
   }
   return undefined;
+}
+
+/**
+ * Returns the debugger model of the universe's main target, used to access
+ * parsed scripts and their source maps.
+ */
+export function getDebuggerModel(
+  devTools: TargetUniverse,
+): DevTools.DebuggerModel | null {
+  return devTools.target.model(
+    DevTools.DebuggerModel,
+  ) as DevTools.DebuggerModel | null;
 }
 
 export async function createStackTrace(

@@ -710,6 +710,12 @@ export const commands: Commands = {
     category: 'Extensions',
     args: {},
   },
+  list_logpoints: {
+    description:
+      'List the logpoints that are currently set on the selected page. Logpoints are set with set_logpoint.',
+    category: 'Debugging',
+    args: {},
+  },
   list_network_requests: {
     description:
       'List all requests for the currently selected page since the last navigation.',
@@ -750,6 +756,34 @@ export const commands: Commands = {
     description: 'Get a list of pages open in the browser.',
     category: 'Navigation automation',
     args: {},
+  },
+  list_scripts: {
+    description:
+      'List the scripts parsed by the currently selected page, including the original source files from their source maps. Useful to find the correct location for set_logpoint, for example which bundle contains a given original source file.',
+    category: 'Debugging',
+    args: {
+      filter: {
+        name: 'filter',
+        type: 'string',
+        description:
+          'Case-insensitive substring matched against script URLs and against the original source file paths from source maps. When omitted, all scripts are listed.',
+        required: false,
+      },
+      pageSize: {
+        name: 'pageSize',
+        type: 'integer',
+        description:
+          'Maximum number of scripts to return. When omitted, returns all scripts.',
+        required: false,
+      },
+      pageIdx: {
+        name: 'pageIdx',
+        type: 'integer',
+        description:
+          'Page number to return (0-based). When omitted, returns the first page.',
+        required: false,
+      },
+    },
   },
   list_webmcp_tools: {
     description:
@@ -939,6 +973,20 @@ export const commands: Commands = {
       },
     },
   },
+  remove_logpoint: {
+    description:
+      'Remove a logpoint that was set with set_logpoint from the currently selected page.',
+    category: 'Debugging',
+    args: {
+      id: {
+        name: 'id',
+        type: 'integer',
+        description:
+          'The id of the logpoint to remove, as reported by set_logpoint or list_logpoints. When omitted, all logpoints on the page are removed.',
+        required: false,
+      },
+    },
+  },
   resize_page: {
     description:
       "Resizes the selected page's window so that the page has specified dimension",
@@ -994,6 +1042,48 @@ export const commands: Commands = {
         type: 'boolean',
         description: 'Whether to focus the page and bring it to the top.',
         required: false,
+      },
+    },
+  },
+  set_logpoint: {
+    description:
+      'Set a logpoint in a script of the currently selected page. A logpoint logs the value of one or more expressions to the console every time a line of code executes, without pausing execution and without modifying the source code. It works like logpoints in the Chrome DevTools Sources panel and replaces temporarily instrumenting code with console.log() calls. The location may be given as the URL of a script as served to the browser, or as an original source file (for example a TypeScript file) which is resolved through the source maps of the parsed scripts and re-resolved automatically when a rebuilt bundle is loaded. Use list_scripts to inspect the available scripts and their original sources. The logged output appears as regular console messages that can be read with list_console_messages. Logpoints stay active across page reloads and navigations until they are removed or the page is closed.',
+    category: 'Debugging',
+    args: {
+      url: {
+        name: 'url',
+        type: 'string',
+        description:
+          'The URL of the script to set the logpoint in, or the path of an original source file resolvable through source maps (suffix match, e.g. "src/app.ts" or "app.ts"). Specify either url or urlRegex, not both.',
+        required: false,
+      },
+      urlRegex: {
+        name: 'urlRegex',
+        type: 'string',
+        description:
+          'A regular expression matching the URL of the script(s) or source-map source to set the logpoint in, for example "app\\.js$". Specify either url or urlRegex, not both.',
+        required: false,
+      },
+      lineNumber: {
+        name: 'lineNumber',
+        type: 'integer',
+        description:
+          'The 1-based line number to log at, in the coordinates of the given url (for original source files: the line in that source file). The logpoint fires whenever this line executes. If the line contains no executable code, the logpoint is moved to the next possible location.',
+        required: true,
+      },
+      columnNumber: {
+        name: 'columnNumber',
+        type: 'integer',
+        description:
+          'Optional 1-based column number, useful for lines containing multiple statements (for example, in minified scripts).',
+        required: false,
+      },
+      expression: {
+        name: 'expression',
+        type: 'string',
+        description:
+          "The expression(s) to log, formatted like the arguments of console.log(). Evaluated in the scope of the logpoint location, so local variables are accessible. Example: 'cart total:', cart.total, cart.items.length",
+        required: true,
       },
     },
   },
