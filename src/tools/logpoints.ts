@@ -89,7 +89,7 @@ export const setLogpoint = definePageTool({
     response.appendResponseLine(`${formatLogpoint(logpoint)}.`);
     if (logpoint.generatedLocation) {
       response.appendResponseLine(
-        'The location was resolved through a source map and is re-resolved automatically when a matching source map loads again (for example after a reload with a regenerated bundle). Note: executions in the first moments after a script loads, before its source map is fetched, may not be logged.',
+        'The location was resolved through a source map and is re-resolved automatically when a matching source map loads again (for example after a reload with a regenerated bundle). Note: on the first page load after a rebuild, code that runs during the load itself is not logged yet; if a load-time logpoint stays silent right after a rebuild, reload once more before concluding that the line does not run.',
       );
     } else if (logpoint.resolvedLocations === 0) {
       response.appendResponseLine(

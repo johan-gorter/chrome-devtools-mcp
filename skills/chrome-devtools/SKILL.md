@@ -45,6 +45,8 @@ Prefer `set_logpoint` over editing source code to add temporary `console.log()` 
 4. Read: `list_console_messages` shows the logged output.
 5. Clean up: `remove_logpoint` when done; logpoints otherwise stay active across navigations until the page is closed.
 
+Note: on the first page load after a rebuild, source-map-resolved logpoints in load-time code do not log yet; reload once more before concluding the line does not run.
+
 ### Parallel execution
 
 You can send multiple tool calls in parallel, but maintain correct order: navigate → wait → snapshot → interact.
