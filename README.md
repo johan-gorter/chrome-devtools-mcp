@@ -512,9 +512,12 @@ If you run into any issues, checkout our [troubleshooting guide](./docs/troubles
   - [`performance_analyze_insight`](docs/tool-reference.md#performance_analyze_insight)
   - [`performance_start_trace`](docs/tool-reference.md#performance_start_trace)
   - [`performance_stop_trace`](docs/tool-reference.md#performance_stop_trace)
-- **Network** (2 tools)
+- **Network** (5 tools)
   - [`get_network_request`](docs/tool-reference.md#get_network_request)
+  - [`get_websocket_message`](docs/tool-reference.md#get_websocket_message)
   - [`list_network_requests`](docs/tool-reference.md#list_network_requests)
+  - [`list_websocket_connections`](docs/tool-reference.md#list_websocket_connections)
+  - [`list_websocket_messages`](docs/tool-reference.md#list_websocket_messages)
 - **Debugging** (8 tools)
   - [`evaluate_script`](docs/tool-reference.md#evaluate_script)
   - [`get_console_message`](docs/tool-reference.md#get_console_message)
@@ -751,6 +754,11 @@ The Chrome DevTools MCP server supports the following configuration option:
 
 - **`--redactNetworkHeaders`/ `--redact-network-headers`**
   If true, redacts some of the network headers considered sensitive before returning to the client.
+  - **Type:** boolean
+  - **Default:** `false`
+
+- **`--allowUnrestrictedPaths`/ `--allow-unrestricted-paths`**
+  If set, disables the default path restriction that applies when the MCP client does not negotiate the roots capability. By default, file-writing tools are restricted to the OS temp directory when no roots are configured. Use this only when connecting a trusted local client that does not implement MCP roots and requires access to paths outside the temp directory.
   - **Type:** boolean
   - **Default:** `false`
 

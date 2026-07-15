@@ -15,11 +15,7 @@ import sinon from 'sinon';
 import type {ParsedArguments} from '../src/bin/chrome-devtools-mcp-cli-options.js';
 import type {McpContext} from '../src/McpContext.js';
 import type {McpResponse} from '../src/McpResponse.js';
-import {replaceHtmlElementsWithUids} from '../src/McpResponse.js';
-import type {
-  Extension,
-  JSONSchema7Definition,
-} from '../src/third_party/index.js';
+import type {Extension} from '../src/third_party/index.js';
 import {
   closePage,
   listPages,
@@ -63,6 +59,32 @@ describe('McpResponse', () => {
     });
   });
 
+  it('includes a reconnect notice only when set', async () => {
+    await withMcpContext(async (response, context) => {
+      const before = await response.handle('test', context);
+      assert.ok(
+        !JSON.stringify(before.content).includes('Page ids have changed'),
+        'no reconnect notice by default',
+      );
+      assert.ok(
+        !(before.structuredContent as {reconnected?: boolean}).reconnected,
+        'structuredContent is not flagged reconnected by default',
+      );
+
+      response.setReconnectNotice();
+      const after = await response.handle('test', context);
+      assert.ok(
+        JSON.stringify(after.content).includes('Page ids have changed'),
+        'reconnect notice is included once set',
+      );
+      assert.strictEqual(
+        (after.structuredContent as {reconnected?: boolean}).reconnected,
+        true,
+        'structuredContent is flagged reconnected once set',
+      );
+    });
+  });
+
   it('allows response text lines to be added', async t => {
     await withMcpContext(async (response, context) => {
       response.appendResponseLine('Testing 1');
@@ -81,7 +103,7 @@ describe('McpResponse', () => {
 
   it('does not include anything in response if snapshot is null', async t => {
     await withMcpContext(async (response, context) => {
-      const page = context.getSelectedPptrPage();
+      const page = context.getSelectedMcpPage().pptrPage;
       page.accessibility.snapshot = async () => null;
       const {content, structuredContent} = await response.handle(
         'test',
@@ -96,7 +118,7 @@ describe('McpResponse', () => {
 
   it('returns correctly formatted snapshot for a simple tree', async t => {
     await withMcpContext(async (response, context) => {
-      const page = context.getSelectedPptrPage();
+      const page = context.getSelectedMcpPage().pptrPage;
       await page.setContent(
         html`<button>Click me</button>
           <input
@@ -119,7 +141,7 @@ describe('McpResponse', () => {
 
   it('returns values for textboxes', async t => {
     await withMcpContext(async (response, context) => {
-      const page = context.getSelectedPptrPage();
+      const page = context.getSelectedMcpPage().pptrPage;
       await page.setContent(
         html`<label
           >username<input
@@ -143,7 +165,7 @@ describe('McpResponse', () => {
 
   it('returns verbose snapshot and structured content', async t => {
     await withMcpContext(async (response, context) => {
-      const page = context.getSelectedPptrPage();
+      const page = context.getSelectedMcpPage().pptrPage;
       await page.setContent(html`<aside>test</aside>`);
       response.includeSnapshot({
         verbose: true,
@@ -162,7 +184,7 @@ describe('McpResponse', () => {
     const filePath = join(tmpdir(), 'test-snapshot.txt');
     try {
       await withMcpContext(async (response, context) => {
-        const page = context.getSelectedPptrPage();
+        const page = context.getSelectedMcpPage().pptrPage;
         await page.setContent(html`<aside>test</aside>`);
         response.includeSnapshot({
           verbose: true,
@@ -191,7 +213,7 @@ describe('McpResponse', () => {
 
   it('preserves mapping ids across multiple snapshots', async () => {
     await withMcpContext(async (response, context) => {
-      const page = context.getSelectedPptrPage();
+      const page = context.getSelectedMcpPage().pptrPage;
       await page.setContent(html`
         <div>
           <button id="btn1">Button 1</button>
@@ -266,7 +288,7 @@ describe('McpResponse', () => {
             </div>
           `,
         );
-        const page = context.getSelectedPptrPage();
+        const page = context.getSelectedMcpPage().pptrPage;
         await page.goto(server.getRoute('/page.html'));
 
         response.includeSnapshot();
@@ -296,7 +318,9 @@ describe('McpResponse', () => {
 
   it('adds throttling setting when it is not null', async t => {
     await withMcpContext(async (response, context) => {
-      await context.emulate({networkConditions: 'Slow 3G'});
+      await context
+        .getSelectedMcpPage()
+        .emulate({networkConditions: 'Slow 3G'});
       const {content, structuredContent} = await response.handle(
         'test',
         context,
@@ -315,7 +339,7 @@ describe('McpResponse', () => {
         'test',
         context,
       );
-      await context.emulate({});
+      await context.getSelectedMcpPage().emulate({});
       t.assert.snapshot(getTextContent(content[0]));
       t.assert.snapshot(
         JSON.stringify(stabilizeStructuredContent(structuredContent), null, 2),
@@ -341,7 +365,7 @@ describe('McpResponse', () => {
 
   it('adds cpu throttling setting when it is over 1', async t => {
     await withMcpContext(async (response, context) => {
-      await context.emulate({cpuThrottlingRate: 4});
+      await context.getSelectedMcpPage().emulate({cpuThrottlingRate: 4});
       const {content, structuredContent} = await response.handle(
         'test',
         context,
@@ -355,7 +379,7 @@ describe('McpResponse', () => {
 
   it('does not include cpu throttling setting when it is 1', async t => {
     await withMcpContext(async (response, context) => {
-      await context.emulate({cpuThrottlingRate: 1});
+      await context.getSelectedMcpPage().emulate({cpuThrottlingRate: 1});
       const {content, structuredContent} = await response.handle(
         'test',
         context,
@@ -369,7 +393,7 @@ describe('McpResponse', () => {
 
   it('adds viewport emulation setting when it is set', async t => {
     await withMcpContext(async (response, context) => {
-      await context.emulate({
+      await context.getSelectedMcpPage().emulate({
         viewport: {width: 400, height: 400, deviceScaleFactor: 1},
       });
       const {content, structuredContent} = await response.handle(
@@ -385,7 +409,7 @@ describe('McpResponse', () => {
 
   it('adds userAgent emulation setting when it is set', async t => {
     await withMcpContext(async (response, context) => {
-      await context.emulate({userAgent: 'MyUA'});
+      await context.getSelectedMcpPage().emulate({userAgent: 'MyUA'});
       const {content, structuredContent} = await response.handle(
         'test',
         context,
@@ -399,7 +423,7 @@ describe('McpResponse', () => {
 
   it('adds color scheme emulation setting when it is set', async t => {
     await withMcpContext(async (response, context) => {
-      await context.emulate({colorScheme: 'dark'});
+      await context.getSelectedMcpPage().emulate({colorScheme: 'dark'});
       const {content, structuredContent} = await response.handle(
         'test',
         context,
@@ -462,7 +486,7 @@ describe('McpResponse', () => {
   it('add network requests when setting is true', async t => {
     await withMcpContext(async (response, context) => {
       response.setIncludeNetworkRequests(true);
-      context.getNetworkRequests = () => {
+      context.getSelectedMcpPage().getNetworkRequests = () => {
         return [getMockRequest({stableId: 1}), getMockRequest({stableId: 2})];
       };
       const {content, structuredContent} = await response.handle(
@@ -479,7 +503,7 @@ describe('McpResponse', () => {
   it('does not include network requests when setting is false', async t => {
     await withMcpContext(async (response, context) => {
       response.setIncludeNetworkRequests(false);
-      context.getNetworkRequests = () => {
+      context.getSelectedMcpPage().getNetworkRequests = () => {
         return [getMockRequest()];
       };
       const {content, structuredContent} = await response.handle(
@@ -511,10 +535,10 @@ describe('McpResponse', () => {
         postData: JSON.stringify({request: 'body'}),
         response: httpResponse,
       });
-      context.getNetworkRequests = () => {
+      context.getSelectedMcpPage().getNetworkRequests = () => {
         return [request];
       };
-      context.getNetworkRequestById = () => {
+      context.getSelectedMcpPage().getNetworkRequestById = () => {
         return request;
       };
       response.attachNetworkRequest(1);
@@ -535,10 +559,10 @@ describe('McpResponse', () => {
     await withMcpContext(async (response, context) => {
       response.setIncludeNetworkRequests(true);
       const request = getMockRequest();
-      context.getNetworkRequests = () => {
+      context.getSelectedMcpPage().getNetworkRequests = () => {
         return [request];
       };
-      context.getNetworkRequestById = () => {
+      context.getSelectedMcpPage().getNetworkRequestById = () => {
         return request;
       };
       response.attachNetworkRequest(1);
@@ -556,7 +580,7 @@ describe('McpResponse', () => {
   it('adds console messages when the setting is true', async t => {
     await withMcpContext(async (response, context) => {
       response.setIncludeConsoleData(true);
-      const page = context.getSelectedPptrPage();
+      const page = context.getSelectedMcpPage().pptrPage;
       const consoleMessagePromise = new Promise<void>(resolve => {
         page.on('console', () => {
           resolve();
@@ -602,7 +626,7 @@ describe('McpResponse', () => {
       };
       mockAggregatedIssue.getDescription.returns(mockDescription);
       response.setIncludeConsoleData(true);
-      context.getConsoleData = () => {
+      context.getSelectedMcpPage().getConsoleData = () => {
         return [mockAggregatedIssue];
       };
 
@@ -627,7 +651,7 @@ describe('McpResponse', () => {
       };
       mockAggregatedIssue.getDescription.returns(mockDescription);
       response.attachConsoleMessage(1);
-      context.getConsoleMessageById = () => {
+      context.getSelectedMcpPage().getConsoleMessageById = () => {
         return mockAggregatedIssue;
       };
 
@@ -646,7 +670,7 @@ describe('McpResponse network request filtering', () => {
       response.setIncludeNetworkRequests(true, {
         resourceTypes: ['script', 'stylesheet'],
       });
-      context.getNetworkRequests = () => {
+      context.getSelectedMcpPage().getNetworkRequests = () => {
         return [
           getMockRequest({resourceType: 'script'}),
           getMockRequest({resourceType: 'image'}),
@@ -670,7 +694,7 @@ describe('McpResponse network request filtering', () => {
       response.setIncludeNetworkRequests(true, {
         resourceTypes: ['image'],
       });
-      context.getNetworkRequests = () => {
+      context.getSelectedMcpPage().getNetworkRequests = () => {
         return [
           getMockRequest({resourceType: 'script'}),
           getMockRequest({resourceType: 'image'}),
@@ -693,7 +717,7 @@ describe('McpResponse network request filtering', () => {
       response.setIncludeNetworkRequests(true, {
         resourceTypes: ['font'],
       });
-      context.getNetworkRequests = () => {
+      context.getSelectedMcpPage().getNetworkRequests = () => {
         return [
           getMockRequest({resourceType: 'script'}),
           getMockRequest({resourceType: 'image'}),
@@ -714,7 +738,7 @@ describe('McpResponse network request filtering', () => {
   it('shows all requests when no filters are provided', async t => {
     await withMcpContext(async (response, context) => {
       response.setIncludeNetworkRequests(true);
-      context.getNetworkRequests = () => {
+      context.getSelectedMcpPage().getNetworkRequests = () => {
         return [
           getMockRequest({resourceType: 'script'}),
           getMockRequest({resourceType: 'image'}),
@@ -740,7 +764,7 @@ describe('McpResponse network request filtering', () => {
       response.setIncludeNetworkRequests(true, {
         resourceTypes: [],
       });
-      context.getNetworkRequests = () => {
+      context.getSelectedMcpPage().getNetworkRequests = () => {
         return [
           getMockRequest({resourceType: 'script'}),
           getMockRequest({resourceType: 'image'}),
@@ -765,7 +789,7 @@ describe('McpResponse network pagination', () => {
   it('returns all requests when pagination is not provided', async t => {
     await withMcpContext(async (response, context) => {
       const requests = Array.from({length: 5}, () => getMockRequest());
-      context.getNetworkRequests = () => requests;
+      context.getSelectedMcpPage().getNetworkRequests = () => requests;
       response.setIncludeNetworkRequests(true);
       const {content, structuredContent} = await response.handle(
         'test',
@@ -786,7 +810,7 @@ describe('McpResponse network pagination', () => {
       const requests = Array.from({length: 30}, (_, idx) =>
         getMockRequest({method: `GET-${idx}`}),
       );
-      context.getNetworkRequests = () => {
+      context.getSelectedMcpPage().getNetworkRequests = () => {
         return requests;
       };
       response.setIncludeNetworkRequests(true, {pageSize: 10});
@@ -809,7 +833,7 @@ describe('McpResponse network pagination', () => {
       const requests = Array.from({length: 25}, (_, idx) =>
         getMockRequest({method: `GET-${idx}`}),
       );
-      context.getNetworkRequests = () => requests;
+      context.getSelectedMcpPage().getNetworkRequests = () => requests;
       response.setIncludeNetworkRequests(true, {
         pageSize: 10,
         pageIdx: 1,
@@ -828,10 +852,27 @@ describe('McpResponse network pagination', () => {
     });
   });
 
+  it('paginates the first page when pageIdx is 0 without pageSize', async () => {
+    await withMcpContext(async (response, context) => {
+      const requests = Array.from({length: 30}, (_, idx) =>
+        getMockRequest({method: `GET-${idx}`}),
+      );
+      context.getSelectedMcpPage().getNetworkRequests = () => requests;
+      // pageIdx 0 is a valid page, not "no pagination" — it must apply the
+      // default page size like any other page.
+      response.setIncludeNetworkRequests(true, {pageIdx: 0});
+      const {content} = await response.handle('test', context);
+      const text = getTextContent(content[0]);
+      assert.ok(text.includes('Showing 1-20 of 30 (Page 1 of 2).'));
+      assert.ok(text.includes('Next page: 1'));
+      assert.ok(!text.includes('Previous page:'));
+    });
+  });
+
   it('handles invalid page number by showing first page', async t => {
     await withMcpContext(async (response, context) => {
       const requests = Array.from({length: 5}, () => getMockRequest());
-      context.getNetworkRequests = () => requests;
+      context.getSelectedMcpPage().getNetworkRequests = () => requests;
       response.setIncludeNetworkRequests(true, {
         pageSize: 2,
         pageIdx: 10, // Invalid page number
@@ -1168,16 +1209,14 @@ describe('third-party developer tools', () => {
 
   it('includes third-party developer tools in select_page response', async () => {
     await testIncludesThirdPartyDeveloperTools(async (response, context) => {
-      const pageId =
-        context.getPageId(context.getSelectedMcpPage().pptrPage) ?? 1;
+      const pageId = context.getSelectedMcpPage().id;
       await selectPage.handler({params: {pageId}}, response, context);
     }, 'select_page');
   });
 
   it('includes third-party developer tools in close_page response', async () => {
     await testIncludesThirdPartyDeveloperTools(async (response, context) => {
-      const pageId =
-        context.getPageId(context.getSelectedMcpPage().pptrPage) ?? 1;
+      const pageId = context.getSelectedMcpPage().id;
       await closePage.handler({params: {pageId}}, response, context);
     }, 'close_page');
   });
@@ -1208,254 +1247,6 @@ describe('third-party developer tools', () => {
         context,
       );
     }, 'new_page');
-  });
-});
-
-describe('replaceHtmlElementsWithUids', () => {
-  it('does nothing for boolean schemas', () => {
-    const schemaTrue: JSONSchema7Definition = true;
-    const schemaFalse: JSONSchema7Definition = false;
-
-    replaceHtmlElementsWithUids(schemaTrue);
-    replaceHtmlElementsWithUids(schemaFalse);
-
-    assert.strictEqual(schemaTrue, true);
-    assert.strictEqual(schemaFalse, false);
-  });
-
-  it('replaces HTMLElement type with uid string', () => {
-    const schema: JSONSchema7Definition = {
-      type: 'object',
-      properties: {
-        foo: {type: 'string'},
-        bar: {type: 'number'},
-      },
-      required: ['foo'],
-    };
-    Object.assign(schema, {'x-mcp-type': 'HTMLElement'});
-
-    replaceHtmlElementsWithUids(schema);
-
-    if (typeof schema === 'object') {
-      assert.deepStrictEqual(schema.properties, {
-        uid: {type: 'string'},
-      });
-      assert.deepStrictEqual(schema.required, ['uid']);
-    } else {
-      assert.fail('Schema should be an object');
-    }
-  });
-
-  it('does not replace if x-mcp-type is not HTMLElement', () => {
-    const schema: JSONSchema7Definition = {
-      type: 'object',
-      properties: {
-        foo: {type: 'string'},
-      },
-    };
-    Object.assign(schema, {'x-mcp-type': 'OtherType'});
-
-    replaceHtmlElementsWithUids(schema);
-
-    if (typeof schema === 'object') {
-      assert.deepStrictEqual(schema.properties, {
-        foo: {type: 'string'},
-      });
-      assert.strictEqual(schema.required, undefined);
-    } else {
-      assert.fail('Schema should be an object');
-    }
-  });
-
-  it('recurses into nested properties', () => {
-    const schema: JSONSchema7Definition = {
-      type: 'object',
-      properties: {
-        element: {
-          type: 'object',
-          properties: {
-            foo: {type: 'string'},
-          },
-        },
-        other: {
-          type: 'string',
-        },
-      },
-    };
-    if (typeof schema === 'object' && schema.properties) {
-      Object.assign(schema.properties.element, {'x-mcp-type': 'HTMLElement'});
-    }
-
-    replaceHtmlElementsWithUids(schema);
-
-    if (
-      typeof schema === 'object' &&
-      schema.properties &&
-      typeof schema.properties.element === 'object'
-    ) {
-      const elementSchema = schema.properties.element;
-      assert.deepStrictEqual(elementSchema.properties, {
-        uid: {type: 'string'},
-      });
-      assert.deepStrictEqual(elementSchema.required, ['uid']);
-    } else {
-      assert.fail('Unexpected schema structure');
-    }
-  });
-
-  it('recurses into array items (single schema object)', () => {
-    const schema: JSONSchema7Definition = {
-      type: 'array',
-      items: {
-        type: 'object',
-      },
-    };
-    if (typeof schema === 'object' && typeof schema.items === 'object') {
-      Object.assign(schema.items, {'x-mcp-type': 'HTMLElement'});
-    }
-
-    replaceHtmlElementsWithUids(schema);
-
-    if (typeof schema === 'object' && typeof schema.items === 'object') {
-      const itemsSchema = schema.items;
-      if (!Array.isArray(itemsSchema)) {
-        assert.deepStrictEqual(itemsSchema.properties, {
-          uid: {type: 'string'},
-        });
-        assert.deepStrictEqual(itemsSchema.required, ['uid']);
-      } else {
-        assert.fail('items should not be an array in this test case');
-      }
-    } else {
-      assert.fail('Unexpected schema structure');
-    }
-  });
-
-  it('recurses into array items (array of schemas)', () => {
-    const schema: JSONSchema7Definition = {
-      type: 'array',
-      items: [
-        {
-          type: 'object',
-        },
-        {
-          type: 'string',
-        },
-      ],
-    };
-    if (typeof schema === 'object' && Array.isArray(schema.items)) {
-      Object.assign(schema.items[0], {'x-mcp-type': 'HTMLElement'});
-    }
-
-    replaceHtmlElementsWithUids(schema);
-
-    if (typeof schema === 'object' && Array.isArray(schema.items)) {
-      const firstItem = schema.items[0];
-      if (typeof firstItem === 'object') {
-        assert.deepStrictEqual(firstItem.properties, {
-          uid: {type: 'string'},
-        });
-        assert.deepStrictEqual(firstItem.required, ['uid']);
-      } else {
-        assert.fail('First item should be an object');
-      }
-
-      const secondItem = schema.items[1];
-      if (typeof secondItem === 'object') {
-        assert.strictEqual(secondItem.properties, undefined);
-      } else {
-        assert.fail('Second item should be an object');
-      }
-    } else {
-      assert.fail('Unexpected schema structure');
-    }
-  });
-
-  it('recurses into anyOf', () => {
-    const schema: JSONSchema7Definition = {
-      anyOf: [
-        {
-          type: 'object',
-        },
-        {
-          type: 'string',
-        },
-      ],
-    };
-    if (typeof schema === 'object' && Array.isArray(schema.anyOf)) {
-      Object.assign(schema.anyOf[0], {'x-mcp-type': 'HTMLElement'});
-    }
-
-    replaceHtmlElementsWithUids(schema);
-
-    if (typeof schema === 'object' && Array.isArray(schema.anyOf)) {
-      const firstItem = schema.anyOf[0];
-      if (typeof firstItem === 'object') {
-        assert.deepStrictEqual(firstItem.properties, {
-          uid: {type: 'string'},
-        });
-      } else {
-        assert.fail('First item should be an object');
-      }
-    } else {
-      assert.fail('Unexpected schema structure');
-    }
-  });
-
-  it('recurses into allOf', () => {
-    const schema: JSONSchema7Definition = {
-      allOf: [
-        {
-          type: 'object',
-        },
-      ],
-    };
-    if (typeof schema === 'object' && Array.isArray(schema.allOf)) {
-      Object.assign(schema.allOf[0], {'x-mcp-type': 'HTMLElement'});
-    }
-
-    replaceHtmlElementsWithUids(schema);
-
-    if (typeof schema === 'object' && Array.isArray(schema.allOf)) {
-      const firstItem = schema.allOf[0];
-      if (typeof firstItem === 'object') {
-        assert.deepStrictEqual(firstItem.properties, {
-          uid: {type: 'string'},
-        });
-      } else {
-        assert.fail('First item should be an object');
-      }
-    } else {
-      assert.fail('Unexpected schema structure');
-    }
-  });
-
-  it('recurses into oneOf', () => {
-    const schema: JSONSchema7Definition = {
-      oneOf: [
-        {
-          type: 'object',
-        },
-      ],
-    };
-    if (typeof schema === 'object' && Array.isArray(schema.oneOf)) {
-      Object.assign(schema.oneOf[0], {'x-mcp-type': 'HTMLElement'});
-    }
-
-    replaceHtmlElementsWithUids(schema);
-
-    if (typeof schema === 'object' && Array.isArray(schema.oneOf)) {
-      const firstItem = schema.oneOf[0];
-      if (typeof firstItem === 'object') {
-        assert.deepStrictEqual(firstItem.properties, {
-          uid: {type: 'string'},
-        });
-      } else {
-        assert.fail('First item should be an object');
-      }
-    } else {
-      assert.fail('Unexpected schema structure');
-    }
   });
 });
 
@@ -1523,8 +1314,7 @@ describe('webmcp', () => {
       t,
       {categoryExperimentalWebmcp: true},
       async (response, context) => {
-        const pageId =
-          context.getPageId(context.getSelectedMcpPage().pptrPage) ?? 1;
+        const pageId = context.getSelectedMcpPage().id;
         await selectPage.handler({params: {pageId}}, response, context);
       },
       'select_page',
